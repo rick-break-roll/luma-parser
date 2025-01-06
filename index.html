@@ -45,16 +45,18 @@
                 const userIds = [];
                 lines.forEach(line => {
                     const userId = line.trim();
-                    if (userId) userIds.push(userId);
+                    if (userId && userId.startsWith('usr-')) { // Ensure the userId starts with 'usr-'
+                        userIds.push(userId);
+                    }
                 });
 
                 const profiles = [];
                 for (let i = 0; i < userIds.length; i++) {
                     const userId = userIds[i];
+                    console.log(`Fetching profile for: ${userId}`);
                     try {
                         const profile = await fetchProfile(userId);
                         profiles.push(profile);
-                        console.log(`Fetched profile for: ${userId}`);
                     } catch (error) {
                         console.error(`Failed to fetch profile for ${userId}:`, error);
                     }
@@ -75,8 +77,9 @@
 
         async function fetchProfile(userId) {
             try {
-                // Use the Netlify function as a proxy to fetch the profile
-                const response = await fetch(`/api/fetchProfile?userId=${userId}`);
+                const apiUrl = `https://677c01b…--luma-parser.netlify.app/api/fetchProfile?userId=${encodeURIComponent(userId)}`;
+                console.log('Fetching data from:', apiUrl); // Log the full URL to check
+                const response = await fetch(apiUrl);
                 if (!response.ok) {
                     throw new Error(`Error fetching profile: ${response.statusText}`);
                 }
