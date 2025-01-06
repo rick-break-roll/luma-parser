@@ -75,7 +75,8 @@
 
         async function fetchProfile(userId) {
             try {
-                const response = await fetch(`https://lu.ma/user/${userId}`);
+                // Use the Netlify function as a proxy to fetch the profile
+                const response = await fetch(`/api/fetchProfile?userId=${userId}`);
                 if (!response.ok) {
                     throw new Error(`Error fetching profile: ${response.statusText}`);
                 }
