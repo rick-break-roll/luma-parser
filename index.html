@@ -7,11 +7,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, system-ui, sans-serif;
             max-width: 800px;
             margin: 2rem auto;
             padding: 0 1rem;
-            line-height: 1.5;
         }
         textarea {
             width: 100%;
@@ -26,36 +25,18 @@
             padding: 0.5rem 1rem;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 1rem;
-        }
-        button:hover {
-            background: #0052a3;
-        }
-        button:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
         }
         #status {
             margin-top: 1rem;
             padding: 1rem;
             border-radius: 4px;
         }
-        .success {
-            background: #e6ffe6;
-            color: #006600;
-        }
-        .error {
-            background: #ffe6e6;
-            color: #660000;
-        }
-        #progress {
-            margin-top: 1rem;
-        }
+        .success { background: #e6ffe6; }
+        .error { background: #ffe6e6; }
     </style>
 </head>
 <body>
     <h1>Lu.ma Profile Parser</h1>
-    <p>Paste the HTML code containing the "Going" people block below:</p>
     <textarea id="htmlInput" placeholder="Paste HTML here..."></textarea>
     <button onclick="parseProfiles()" id="parseButton">Parse Profiles</button>
     <div id="status"></div>
@@ -73,83 +54,62 @@
             button.disabled = true;
             
             try {
-                // Parse HTML content
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlContent, 'text/html');
                 
-                // Get all profile links
                 const profileLinks = Array.from(doc.querySelectorAll('a[href^="/user/"]'))
-                    .map(a => `https://lu.ma${a.getAttribute('href')}`);
+                    .map(a => a.getAttribute('href').replace('/user/', ''));
 
                 if (profileLinks.length === 0) {
-                    showStatus('No profile links found in the HTML', 'error');
+                    showStatus('No profile links found', 'error');
                     button.disabled = false;
                     return;
                 }
 
-                showStatus(`Found ${profileLinks.length} profiles. Starting to parse...`, 'success');
-
-                // Prepare CSV data
+                showStatus(`Found ${profileLinks.length} profiles...`, 'success');
+                
                 const csvData = [['Name', 'LinkedIn', 'Website', 'Additional Links']];
                 
-                // Process each profile
                 for (let i = 0; i < profileLinks.length; i++) {
-                    const link = profileLinks[i];
+                    const userId = profileLinks[i];
                     updateProgress(i + 1, profileLinks.length);
                     
                     try {
-                        const response = await fetch(link);
+                        const response = await fetch('/.netlify/functions/fetch-profile', {
+                            method: 'POST',
+                            body: JSON.stringify({ userId }),
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+
                         if (!response.ok) {
-                            console.error(`Failed to fetch ${link}: ${response.status}`);
+                            console.error(`Failed to fetch ${userId}`);
                             continue;
                         }
 
-                        const text = await response.text();
-                        const profileDoc = parser.parseFromString(text, 'text/html');
+                        const profileData = await response.json();
+                        csvData.push([
+                            profileData.name,
+                            profileData.linkedin,
+                            profileData.website,
+                            profileData.additionalLinks.join(', ')
+                        ]);
                         
-                        // Extract name
-                        const nameElement = profileDoc.querySelector('h1.jsx-3444256809.mb-0');
-                        const name = nameElement ? nameElement.textContent.trim() : '';
-                        
-                        // Extract social links
-                        const socialLinks = Array.from(profileDoc.querySelectorAll('a[href]'));
-                        let linkedin = '';
-                        let website = '';
-                        const additionalLinks = [];
-                        
-                        socialLinks.forEach(link => {
-                            const href = link.getAttribute('href');
-                            if (href.includes('linkedin.com')) {
-                                linkedin = href;
-                            } else if (!website) {
-                                website = href;
-                            } else {
-                                additionalLinks.push(href);
-                            }
-                        });
-
-                        csvData.push([name, linkedin, website, additionalLinks.join(', ')]);
-                        
-                        // Add delay between requests
                         await new Promise(resolve => setTimeout(resolve, 100));
                     } catch (error) {
-                        console.error(`Error processing ${link}:`, error);
+                        console.error(`Error processing ${userId}:`, error);
                     }
                 }
 
-                // Generate and download CSV
                 const csv = Papa.unparse(csvData);
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 link.href = URL.createObjectURL(blob);
-                link.download = `profiles_${timestamp}.csv`;
+                link.download = `profiles_${new Date().toISOString()}.csv`;
                 link.click();
                 
-                showStatus('Parsing completed! CSV file has been downloaded.', 'success');
+                showStatus('Parsing completed!', 'success');
             } catch (error) {
                 showStatus(`Error: ${error.message}`, 'error');
-                console.error('Error:', error);
             } finally {
                 button.disabled = false;
             }
@@ -163,7 +123,7 @@
 
         function updateProgress(current, total) {
             const progress = document.getElementById('progress');
-            progress.textContent = `Processing profile ${current} of ${total}...`;
+            progress.textContent = `Processing ${current} of ${total}...`;
         }
     </script>
 </body>
