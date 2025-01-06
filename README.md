@@ -12,3 +12,4 @@ usually, it's div with this name:![image](https://github.com/user-attachments/as
 
 5. copy element
 6. paste and wait until done, CSV will auto-download
+7. ![luma-scraper](https://github.com/user-attachments/assets/e55c765d-9638-499b-8ef1-f2b60aa803f7)
