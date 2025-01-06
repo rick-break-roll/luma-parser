@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSV Generator</title>
+    <title>CSV Generator from Lu.ma Data</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
         }
-        input[type="file"] {
-            padding: 5px;
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            margin-bottom: 10px;
         }
         button {
             padding: 10px 15px;
@@ -24,55 +27,61 @@
 </head>
 <body>
     <h1>CSV Generator from Lu.ma Data</h1>
-    <input type="file" id="csvFile" accept=".csv" />
-    <button onclick="processFile()">Generate CSV</button>
+    
+    <label for="htmlInput">Paste the HTML content here:</label><br>
+    <textarea id="htmlInput"></textarea><br>
+    
+    <button onclick="processHTML()">Generate CSV</button>
+    
     <pre id="output"></pre>
 
     <script>
-        async function processFile() {
-            const fileInput = document.getElementById('csvFile');
-            if (!fileInput.files.length) {
-                alert('Please upload a CSV file.');
+        async function processHTML() {
+            const htmlInput = document.getElementById('htmlInput').value.trim();
+            if (!htmlInput) {
+                alert('Please paste the HTML content.');
                 return;
             }
 
-            const file = fileInput.files[0];
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const contents = event.target.result;
-                const lines = contents.split("\n");
-
-                const userIds = [];
-                lines.forEach(line => {
-                    const userId = line.trim();
-                    if (userId && userId.startsWith('usr-')) { // Ensure the userId starts with 'usr-'
-                        userIds.push(userId);
-                    }
-                });
-
-                const profiles = [];
-                for (let i = 0; i < userIds.length; i++) {
-                    const userId = userIds[i];
-                    console.log(`Fetching profile for: ${userId}`);
-                    try {
-                        const profile = await fetchProfile(userId);
-                        profiles.push(profile);
-                    } catch (error) {
-                        console.error(`Failed to fetch profile for ${userId}:`, error);
-                    }
-
-                    // Delay between requests to avoid hitting rate limits
-                    if (i < userIds.length - 1) {
-                        await delay(2000); // 2 seconds delay
-                    }
+            const userIds = extractUserIdsFromHTML(htmlInput);
+            const profiles = [];
+            for (let i = 0; i < userIds.length; i++) {
+                const userId = userIds[i];
+                console.log(`Fetching profile for: ${userId}`);
+                try {
+                    const profile = await fetchProfile(userId);
+                    profiles.push(profile);
+                } catch (error) {
+                    console.error(`Failed to fetch profile for ${userId}:`, error);
                 }
 
-                // Create CSV from profiles
-                const csv = generateCSV(profiles);
-                downloadCSV(csv);
-            };
+                // Delay between requests to avoid hitting rate limits
+                if (i < userIds.length - 1) {
+                    await delay(2000); // 2 seconds delay
+                }
+            }
 
-            reader.readAsText(file);
+            // Create CSV from profiles
+            const csv = generateCSV(profiles);
+            downloadCSV(csv);
+        }
+
+        // Extract userIds from the pasted HTML content
+        function extractUserIdsFromHTML(html) {
+            const userIds = [];
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Find userId in anchor elements with user link (you can change the selector based on the HTML structure)
+            const links = doc.querySelectorAll('a[href^="/user/"]');
+            links.forEach(link => {
+                const userId = link.href.split('/user/')[1]; // Extract user ID after "/user/"
+                if (userId) {
+                    userIds.push(userId);
+                }
+            });
+
+            return userIds;
         }
 
         async function fetchProfile(userId) {
