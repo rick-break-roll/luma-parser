@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to CSV Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        input[type="file"] {
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #downloadLink {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Upload Your HTML File</h1>
+    <input type="file" id="htmlFile" accept=".html" />
+    <button onclick="processFile()">Generate CSV</button>
+
+    <h3>Download your CSV:</h3>
+    <a id="downloadLink" href="#">Download CSV</a>
+
+    <script>
+        function processFile() {
+            const fileInput = document.getElementById('htmlFile');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Please select an HTML file.");
+                return;
+            }
+
+            // Read the HTML file
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const htmlContent = e.target.result;
+
+                // Parse the HTML content
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlContent, 'text/html');
+
+                // Extract all the relevant profile links
+                const profileLinks = [];
+                const anchors = doc.querySelectorAll('a[href^="/user/"]');
+                anchors.forEach(anchor => {
+                    const relativeLink = anchor.getAttribute('href');
+                    const fullLink = "https://lu.ma" + relativeLink;
+                    profileLinks.push(fullLink);
+                });
+
+                // Process each profile link and extract the necessary information
+                const csvData = [["Name", "LinkedIn", "Website", "Additional Links"]]; // CSV headers
+
+                profileLinks.forEach(link => {
+                    fetch(link)
+                        .then(response => response.text())
+                        .then(profileHtml => {
+                            const profileDoc = new DOMParser().parseFromString(profileHtml, 'text/html');
+
+                            // Extracting the name (you may need to adjust the selectors)
+                            let name = profileDoc.querySelector('h1.jsx-3444256809.mb-0')?.textContent.trim() || 'N/A';
+
+                            let linkedin = '';
+                            let website = '';
+                            let additionalLinks = [];
+
+                            // Extract social media and website links
+                            const socialLinks = profileDoc.querySelectorAll('a[href]');
+                            socialLinks.forEach(linkElement => {
+                                const href = linkElement.getAttribute('href');
+                                if (href.includes('linkedin.com')) {
+                                    linkedin = href;
+                                } else if (!website) {
+                                    website = href;
+                                } else {
+                                    additionalLinks.push(href);
+                                }
+                            });
+
+                            // Add the data to the CSV row
+                            csvData.push([name, linkedin, website, ...additionalLinks]);
+
+                            // Once all profiles are processed, generate the CSV
+                            if (csvData.length === profileLinks.length + 1) {
+                                // Generate CSV from data
+                                const csv = Papa.unparse(csvData);
+                                const blob = new Blob([csv], { type: 'text/csv' });
+
+                                // Create download link
+                                const downloadLink = document.getElementById('downloadLink');
+                                const url = URL.createObjectURL(blob);
+                                downloadLink.href = url;
+                                downloadLink.download = "profile_data.csv";
+                                downloadLink.style.display = 'inline-block';
+
+                                // Clean up: Delete the uploaded file from memory
+                                fileInput.value = '';  // Clear the file input so no file remains in memory
+                            }
+                        })
+                        .catch(error => console.error('Error fetching profile:', error));
+                });
+            };
+
+            // Read the HTML file as text
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
