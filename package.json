@@ -1,9 +1,6 @@
 {
-  "name": "csv-generator",
-  "version": "1.0.0",
-  "description": "CSV Generator for Lu.ma Data",
-  "main": "index.html",
   "dependencies": {
-    "node-fetch": "^3.2.0"
+    "node-fetch": "^2.6.1",
+    "jsdom": "^19.0.0"
   }
 }
