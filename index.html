@@ -3,126 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML to CSV Converter</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <title>CSV Generator</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        h1 {
-            color: #333;
+            padding: 20px;
         }
         input[type="file"] {
-            margin-bottom: 10px;
+            padding: 5px;
         }
         button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
+            padding: 10px 15px;
+            font-size: 16px;
             cursor: pointer;
         }
-        button:hover {
-            background-color: #45a049;
-        }
-        #downloadLink {
-            display: none;
+        .error {
+            color: red;
         }
     </style>
 </head>
 <body>
-
-    <h1>Upload Your HTML File</h1>
-    <input type="file" id="htmlFile" accept=".html" />
+    <h1>CSV Generator from Lu.ma Data</h1>
+    <input type="file" id="csvFile" accept=".csv" />
     <button onclick="processFile()">Generate CSV</button>
-
-    <h3>Download your CSV:</h3>
-    <a id="downloadLink" href="#">Download CSV</a>
+    <pre id="output"></pre>
 
     <script>
-        function processFile() {
-            const fileInput = document.getElementById('htmlFile');
-            const file = fileInput.files[0];
-
-            if (!file) {
-                alert("Please select an HTML file.");
+        async function processFile() {
+            const fileInput = document.getElementById('csvFile');
+            if (!fileInput.files.length) {
+                alert('Please upload a CSV file.');
                 return;
             }
 
-            // Read the HTML file
+            const file = fileInput.files[0];
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const htmlContent = e.target.result;
+            reader.onload = async function(event) {
+                const contents = event.target.result;
+                const lines = contents.split("\n");
 
-                // Parse the HTML content
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlContent, 'text/html');
-
-                // Extract all the relevant profile links
-                const profileLinks = [];
-                const anchors = doc.querySelectorAll('a[href^="/user/"]');
-                anchors.forEach(anchor => {
-                    const relativeLink = anchor.getAttribute('href');
-                    const fullLink = "https://lu.ma" + relativeLink;
-                    profileLinks.push(fullLink);
+                const userIds = [];
+                lines.forEach(line => {
+                    const userId = line.trim();
+                    if (userId) userIds.push(userId);
                 });
 
-                // Process each profile link and extract the necessary information
-                const csvData = [["Name", "LinkedIn", "Website", "Additional Links"]]; // CSV headers
+                const profiles = [];
+                for (let i = 0; i < userIds.length; i++) {
+                    const userId = userIds[i];
+                    try {
+                        const profile = await fetchProfile(userId);
+                        profiles.push(profile);
+                        console.log(`Fetched profile for: ${userId}`);
+                    } catch (error) {
+                        console.error(`Failed to fetch profile for ${userId}:`, error);
+                    }
 
-                profileLinks.forEach(link => {
-                    fetch(link)
-                        .then(response => response.text())
-                        .then(profileHtml => {
-                            const profileDoc = new DOMParser().parseFromString(profileHtml, 'text/html');
+                    // Delay between requests to avoid hitting rate limits
+                    if (i < userIds.length - 1) {
+                        await delay(2000); // 2 seconds delay
+                    }
+                }
 
-                            // Extracting the name (you may need to adjust the selectors)
-                            let name = profileDoc.querySelector('h1.jsx-3444256809.mb-0')?.textContent.trim() || 'N/A';
-
-                            let linkedin = '';
-                            let website = '';
-                            let additionalLinks = [];
-
-                            // Extract social media and website links
-                            const socialLinks = profileDoc.querySelectorAll('a[href]');
-                            socialLinks.forEach(linkElement => {
-                                const href = linkElement.getAttribute('href');
-                                if (href.includes('linkedin.com')) {
-                                    linkedin = href;
-                                } else if (!website) {
-                                    website = href;
-                                } else {
-                                    additionalLinks.push(href);
-                                }
-                            });
-
-                            // Add the data to the CSV row
-                            csvData.push([name, linkedin, website, ...additionalLinks]);
-
-                            // Once all profiles are processed, generate the CSV
-                            if (csvData.length === profileLinks.length + 1) {
-                                // Generate CSV from data
-                                const csv = Papa.unparse(csvData);
-                                const blob = new Blob([csv], { type: 'text/csv' });
-
-                                // Create download link
-                                const downloadLink = document.getElementById('downloadLink');
-                                const url = URL.createObjectURL(blob);
-                                downloadLink.href = url;
-                                downloadLink.download = "profile_data.csv";
-                                downloadLink.style.display = 'inline-block';
-
-                                // Clean up: Delete the uploaded file from memory
-                                fileInput.value = '';  // Clear the file input so no file remains in memory
-                            }
-                        })
-                        .catch(error => console.error('Error fetching profile:', error));
-                });
+                // Create CSV from profiles
+                const csv = generateCSV(profiles);
+                downloadCSV(csv);
             };
 
-            // Read the HTML file as text
             reader.readAsText(file);
+        }
+
+        async function fetchProfile(userId) {
+            try {
+                const response = await fetch(`https://lu.ma/user/${userId}`);
+                if (!response.ok) {
+                    throw new Error(`Error fetching profile: ${response.statusText}`);
+                }
+                const data = await response.json();
+                return {
+                    userId,
+                    name: data.name || 'N/A',
+                    email: data.email || 'N/A',
+                    location: data.location || 'N/A',
+                    bio: data.bio || 'N/A'
+                };
+            } catch (error) {
+                throw new Error(error.message);
+            }
+        }
+
+        function generateCSV(profiles) {
+            const header = ['User ID', 'Name', 'Email', 'Location', 'Bio'];
+            const rows = profiles.map(profile => [
+                profile.userId,
+                profile.name,
+                profile.email,
+                profile.location,
+                profile.bio
+            ]);
+
+            const csvContent = [header, ...rows].map(row => row.join(',')).join('\n');
+            return csvContent;
+        }
+
+        function downloadCSV(csvContent) {
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'profiles.csv';
+            link.click();
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         }
     </script>
 </body>
