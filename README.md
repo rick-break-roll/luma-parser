@@ -1,6 +1,6 @@
 # luma-parser
 parsing HTML code to get data from it in csv
-live: https://677c065755d4d70007995f9c--luma-parser.netlify.app/
+live: [https://677c065755d4d70007995f9c--luma-parser.netlify.app/](https://luma-parser.netlify.app/)
 
 1. open list of attendees of the luma event
 2. scroll to the bottom
